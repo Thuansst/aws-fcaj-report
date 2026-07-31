@@ -7,7 +7,7 @@ pre: " <b> 6. </b> "
 ---
 
 
-Throughout my internship program from **15/06/2026** to **23/08/2026**, I had the opportunity to learn, train, and apply academic knowledge into a real-world enterprise environment. I actively engaged in mastering AWS services and applying them directly to the **Enterprise IoT Cloud Dashboard** project. This hands-on journey helped me sharpen my technical stack (FastAPI, React, PostgreSQL, Docker, AWS EC2, RDS, S3, Route 53) while building key professional competencies like task allocation and team coordination.
+Throughout my internship program from **15/06/2026** to **31/07/2026**, I had the opportunity to learn, train, and apply academic knowledge into a real-world enterprise environment. I actively engaged in mastering AWS services and applying them directly to the **Enterprise IoT Cloud Dashboard** project. This hands-on journey helped me sharpen my technical stack (FastAPI, React, PostgreSQL, Docker, AWS EC2, RDS, S3, Route 53) while building key professional competencies like task allocation and team coordination.
 
 ---
 

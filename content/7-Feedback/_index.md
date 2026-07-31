@@ -6,7 +6,7 @@ chapter: false
 pre: " <b> 7. </b> "
 ---
 
-Reflecting on my 10-week journey from **15/06/2026** to **23/08/2026**, participating in the First Cloud Journey (FCJ) program has been an transformative experience. It gave me a realistic look at enterprise cloud workflows and helped me bridge the gap between academic theory and production-grade engineering.
+Reflecting on my 10-week journey from **15/06/2026** to **31/07/2026**, participating in the First Cloud Journey (FCJ) program has been an transformative experience. It gave me a realistic look at enterprise cloud workflows and helped me bridge the gap between academic theory and production-grade engineering.
 
 ---
 

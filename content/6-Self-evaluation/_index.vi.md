@@ -7,7 +7,7 @@ pre: " <b> 6. </b> "
 ---
 
 
-Trong suốt chương trình thực tập từ **15/06/2026** đến **23/08/2026**, tôi đã có cơ hội học hỏi, rèn luyện và áp dụng kiến thức học đường vào môi trường doanh nghiệp thực tế. Tôi đã chủ động làm chủ các dịch vụ AWS và áp dụng trực tiếp vào dự án **Enterprise IoT Cloud Dashboard**. Hành trình thực hành này giúp tôi trau dồi bộ kỹ năng công nghệ (FastAPI, React, PostgreSQL, Docker, AWS EC2, RDS, S3, Route 53) đồng thời phát triển các năng lực làm việc chuyên nghiệp cốt lõi như phân chia công việc và phối hợp nhóm.
+Trong suốt chương trình thực tập từ **15/06/2026** đến **31/07/2026**, tôi đã có cơ hội học hỏi, rèn luyện và áp dụng kiến thức học đường vào môi trường doanh nghiệp thực tế. Tôi đã chủ động làm chủ các dịch vụ AWS và áp dụng trực tiếp vào dự án **Enterprise IoT Cloud Dashboard**. Hành trình thực hành này giúp tôi trau dồi bộ kỹ năng công nghệ (FastAPI, React, PostgreSQL, Docker, AWS EC2, RDS, S3, Route 53) đồng thời phát triển các năng lực làm việc chuyên nghiệp cốt lõi như phân chia công việc và phối hợp nhóm.
 
 ---
 

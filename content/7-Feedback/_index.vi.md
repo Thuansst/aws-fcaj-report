@@ -6,7 +6,7 @@ chapter: false
 pre: " <b> 7. </b> "
 ---
 
-Nhìn lại hành trình 10 tuần từ **15/06/2026** đến **23/08/2026**, việc tham gia chương trình First Cloud Journey (FCJ) là một trải nghiệm mang tính chuyển biến lớn đối với tôi. Chương trình đã mang đến một góc nhìn thực tế về quy trình làm việc đám mây trong doanh nghiệp, giúp tôi thu hẹp khoảng cách giữa lý thuyết học đường và kỹ thuật triển khai sản phẩm thực tế (production-grade engineering).
+Nhìn lại hành trình 10 tuần từ **15/06/2026** đến **31/07/2026**, việc tham gia chương trình First Cloud Journey (FCJ) là một trải nghiệm mang tính chuyển biến lớn đối với tôi. Chương trình đã mang đến một góc nhìn thực tế về quy trình làm việc đám mây trong doanh nghiệp, giúp tôi thu hẹp khoảng cách giữa lý thuyết học đường và kỹ thuật triển khai sản phẩm thực tế (production-grade engineering).
 
 ---
 
