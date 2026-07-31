@@ -8,11 +8,11 @@ pre: " <b> 5.7. </b> "
 
 ## Tổng quan và mục tiêu
 
-Chạy dashboard React + Vite + TypeScript + Tailwind CSS tại local, định tuyến API call tới EC2, hiển thị telemetry/history và trạng thái server, đồng thời tạo command có thể theo dõi mà không gửi lặp.
+Chạy React + Vite frontend cục bộ khi phát triển, sau đó phân phối bản build production từ Amazon S3 private qua CloudFront. Trình duyệt dùng request tương đối `/api/*`, được CloudFront forward tới ALB, đồng thời hiển thị telemetry định kỳ, bảng điều khiển, đề xuất dựa trên luật và lịch sử của `device_id = room_01`.
 
-## Bước 1 - Kiểm tra và chạy project
+## Bước 1 - Cấu hình React frontend
 
-Source đã kiểm tra dùng React 19.2.7, Vite 8.1.1, TypeScript 6.0.2, Tailwind CSS 3.4.19, Axios, Recharts và Framer Motion. Từ Windows PowerShell:
+Dự án sử dụng React, Vite, TypeScript, Tailwind CSS, Axios và Recharts. Từ Windows PowerShell:
 
 ```powershell
 git clone <REPOSITORY_URL>
@@ -21,11 +21,11 @@ npm install
 npm run dev
 ```
 
-Dùng Node version mà `package.json`/lockfile yêu cầu. Giữ lockfile và không thay chỉ để xử lý khác biệt version local. Source polling latest telemetry và history mỗi 3 giây.
+Sử dụng phiên bản Node theo `package.json` và giữ nguyên lockfile của repository. `npm run dev` là luồng phát triển cục bộ; frontend đã triển khai là bản build Vite trong S3 private, chỉ truy cập qua CloudFront OAC.
 
-## Bước 2 - Cấu hình Vite proxy
+## Bước 2 - Kết nối frontend với FastAPI backend
 
-Dùng relative path `/api` trong component. Development proxy giúp không lặp EC2 URL:
+Dùng đường dẫn tương đối `/api` với Vite development proxy:
 
 ```ts
 // vite.config.ts
@@ -37,7 +37,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://<EC2_PUBLIC_IP>:8000",
+        target: "http://<ALB_DNS_NAME>",
         changeOrigin: true,
       },
     },
@@ -45,81 +45,102 @@ export default defineConfig({
 });
 ```
 
-Restart `npm run dev` sau khi đổi cấu hình Vite. Nếu project dùng `VITE_API_BASE_URL`, định nghĩa trong `.env.local` đã ignore và đọc qua `import.meta.env`; không hard-code URL ở nhiều component.
+Khởi động lại Vite sau khi đổi cấu hình. Proxy này chỉ dùng khi phát triển cục bộ. Ở production, giữ `/api` là đường dẫn tương đối để trình duyệt dùng cùng domain CloudFront; không hard-code URL EC2 hoặc ALB trong React component. Nếu dự án dùng `VITE_API_BASE_URL`, lưu giá trị development trong `.env.local` đã được loại khỏi Git.
 
-File `vite.config.ts` đã kiểm tra hiện chứa một địa chỉ EC2 thật. Đây là vấn đề bảo mật và maintainability: thay bằng placeholder/cấu hình ở trên, không sao chép địa chỉ đó vào báo cáo hoặc evidence.
-
-## Bước 3 - Kết nối API đã tài liệu hóa
-
-Với `deviceId = "room_01"`, UI dùng:
+Các request chính gồm:
 
 ```text
+GET  /api/health
 GET  /api/devices/room_01/latest
 GET  /api/devices/room_01/history
 POST /api/devices/room_01/commands
 ```
 
-Dùng `/openapi.json` để sinh hoặc xác minh TypeScript type. Map field server mà không đổi tên giá trị ánh sáng analog thành Lux. Card latest và chart history cần loading state rõ ràng, error state có thể retry và thời điểm cập nhật cuối.
+Badge **LIVE AWS** phải dựa trên phản hồi backend/API thành công, không chỉ dựa vào việc trang React đã tải.
 
-Chỉ báo **Live AWS status** phải dựa trên health/API request thật. Không hiện màu xanh chỉ vì ứng dụng React đã load.
+Build và tải artifact frontend lên S3 private, sau đó tạo CloudFront invalidation khi cần:
 
-## Bước 4 - Xây control panel
+```powershell
+npm run build
+aws s3 sync .\dist "s3://<PRIVATE_FRONTEND_BUCKET>" --delete
+aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
+```
 
-Hiển thị button cho:
+Distribution dùng default behavior cho frontend S3 và behavior `/api/*` có ưu tiên cao hơn cho ALB origin, đồng thời tắt cache API.
+
+![Dashboard qua CloudFront và các API request thành công](/images/5-Workshop/5.7-frontend/cloudfront-dashboard-api-200.png)
+*Hình 12a. Dashboard tải qua CloudFront HTTPS; các request `latest`, `history` và `commands` qua `/api/*` trả HTTP 200.*
+
+![Phản hồi latest và history qua CloudFront](/images/5-Workshop/5.7-frontend/latest-history.png)
+*Hình 12b. Browser DevTools hiển thị bản ghi mới nhất và lịch sử có thứ tự được trả về qua route production `/api/*`.*
+
+## Bước 3 - Hiển thị telemetry gần thời gian thực
+
+Hiển thị ba card nhiệt độ, độ ẩm và cường độ ánh sáng. Frontend làm mới dữ liệu định kỳ bằng REST polling, vì vậy dashboard được mô tả là **gần thời gian thực**, không phải hệ thống thời gian thực có độ trễ cố định. Khi phù hợp, giao diện cần có trạng thái đang tải, lỗi có thể thử lại và thời điểm cập nhật gần nhất.
+
+## Bước 4 - Hiển thị bảng điều khiển từ xa
+
+Bảng điều khiển hỗ trợ:
 
 - `FAN_ON` / `FAN_OFF`;
-- `LIGHT_ON` / `LIGHT_OFF`; và
-- `CURTAIN_OPEN` / `CURTAIN_CLOSE`.
+- `LIGHT_ON` / `LIGHT_OFF`;
+- `CURTAIN_OPEN` / `CURTAIN_CLOSE`; và
+- chuyển giữa `MODE_MANUAL` và `MODE_AUTO`.
 
-Source hiện tại catch lỗi command API, cập nhật mock state và trả về thành công; source cũng chưa có guard cho request in-flight/command pending. Sửa hành vi này trước khi dùng UI làm bằng chứng nghiệm thu:
+Vô hiệu hóa nút đang gửi request, tránh tạo command trùng đang chờ và phân biệt việc backend nhận command với việc phần cứng thực thi. ID/trạng thái do backend trả về được dùng để theo dõi thay vì chỉ dựa vào trạng thái cục bộ của UI.
 
-1. disable control đang chọn trong lúc POST;
-2. chặn request giống nhau khi command cùng loại còn pending;
-3. trả failure khi POST lỗi thay vì cập nhật mock actuator state;
-4. hiện command ID và state do server trả;
-5. refresh command/telemetry đến khi thấy ACK; và
-6. hiển thị lỗi mà không tuyên bố actuator vật lý đã chạy.
+<p align="center">
+  <img src="/images/5-Workshop/5.7-frontend/dashboard-overview-control-panel.png"
+       alt="React Vite IoT dashboard hiển thị telemetry và bảng điều khiển thiết bị"
+       width="100%" />
+</p>
 
-Sau browser refresh, trạng thái phải được dựng lại từ backend, không lấy từ local toggle.
+*Hình 13. React + Vite dashboard hiển thị telemetry gần thời gian thực và bảng điều khiển quạt, đèn và rèm cho phòng mẫu có `device_id = room_01`.*
 
-## Bước 5 - Ý nghĩa mode và recommendation
+Hình 13 cho thấy giao diện React + Vite, nhãn stack EC2 FastAPI/RDS PostgreSQL/React Vite, ba telemetry card có badge **LIVE AWS**, cùng bảng điều khiển quạt, đèn, rèm và chế độ. UI có thể hiển thị Manual Override hoặc Auto tùy trạng thái hiện tại.
 
-Toggle gửi `MODE_AUTO` hoặc `MODE_MANUAL`. Firmware auto mode mới thực hiện điều khiển threshold mô tả ở 5.6. Recommendation của frontend là rule `if/else` xác định trước; nhãn **AI Auto Control** vì vậy không chính xác và nên đổi thành **Automatic rule-based control**.
+## Bước 5 - Hiển thị phân tích dựa trên luật và lịch sử
 
-UI hiện lưu mode ở local trong khi API chưa có endpoint trả mode firmware. Sau refresh hoặc request lỗi, UI và thiết bị có thể lệch nhau. Không trình bày toggle state là trạng thái firmware đã xác nhận cho đến khi API contract cung cấp dữ liệu đó.
+### Phân tích và đề xuất dựa trên luật
 
-Khi fetch lỗi, `iotEngine.ts` chuyển sang dữ liệu sinh ngẫu nhiên có nhãn `SIMULATED`, còn giao diện dùng cụm “FAIL-PROOF.” Phải làm simulation dễ nhận biết, không dùng làm evidence vận hành và thay tuyên bố fail-proof bằng nhãn degraded/demo mode trung thực. Đồng thời đổi nhãn **Lux** trong source UI thành **Analog light value** đến khi có phép hiệu chuẩn.
+Panel đề xuất đánh giá các điều kiện cố định dựa trên nhiệt độ, độ ẩm, ánh sáng và thời gian. Ví dụ trong giao diện gồm đề xuất tắt quạt ngoài giờ làm việc, thông báo độ ẩm trong khoảng phù hợp và đề xuất điều chỉnh rèm khi ánh sáng cao. Đây là phân tích xác định trước bằng luật/ngưỡng, không phải machine learning, predictive analytics hoặc mô hình đã được huấn luyện.
 
-## Bước 6 - Xác minh browser traffic
+Các biểu đồ lịch sử hiển thị nhiệt độ, độ ẩm và ánh sáng được truy xuất từ Amazon RDS qua endpoint:
 
-Mở DevTools → **Network**:
+```text
+GET /api/devices/room_01/history
+```
 
-1. reload và xem request latest/history;
-2. tạo một command;
-3. kiểm tra method, route plural, request body, status và JSON response;
-4. quan sát `Pending`, sau đó là trạng thái `Executed` do ACK; và
-5. mô phỏng backend lỗi, xác nhận UI vẫn dùng được.
+<p align="center">
+  <img src="/images/5-Workshop/5.7-frontend/dashboard-analysis-history.png"
+       alt="Đề xuất dựa trên luật và biểu đồ lịch sử telemetry"
+       width="100%" />
+</p>
 
-**Kết quả mong đợi:** telemetry và history được render, AWS health phản ánh backend, control tạo đúng một command có thể theo dõi, UI phân biệt nhận request với thực thi vật lý.
+*Hình 14. Panel phân tích theo luật và biểu đồ lịch sử nhiệt độ, độ ẩm và ánh sáng được truy xuất từ Amazon RDS.*
 
-<!-- TODO IMAGE: /images/5-Workshop/5.7-frontend/dashboard-overview.png — Dashboard hiển thị latest telemetry, history, nguồn dữ liệu real/simulated rõ ràng và Analog light value; che địa chỉ EC2. -->
-![Giao diện Trạm Điều khiển Thời gian thực hiển thị dữ liệu telemetry và Bảng Gửi Lệnh điều khiển thiết bị từ xa](/images/5-Workshop/5.7-frontend/dashboard-overview_1.PNG)
-![Giao diện Phân tích & Đề xuất Tự động kèm Biểu đồ Lịch sử được truy vấn trực tiếp từ Amazon RDS PostgreSQL](/images/5-Workshop/5.7-frontend/dashboard-overview_2.PNG)
-*Hình 5-7-1. Dashboard hiển thị latest telemetry, history, nguồn dữ liệu real/simulated rõ ràng và Analog light value.*
-<!-- TODO IMAGE: /images/5-Workshop/5.7-frontend/control-panel-api-request.png — Control panel cùng DevTools Network hiển thị một POST route plural, command ID và server state; che host/IP. -->
-![Kiểm tra giao tiếp API trên Web Dashboard qua Chrome DevTools Network tab, trả về HTTP 200 OK thành công.](/images/5-Workshop/5.7-frontend/control-panel-api-request.PNG)
-*Hình 5-7-2. Kiểm tra giao tiếp API trên Web Dashboard qua Chrome DevTools Network tab, trả về HTTP 200 OK thành công.*
+## Bước 6 - Kết quả mong đợi
+
+- React + Vite frontend tải thành công trên máy cục bộ.
+- Bản build production tải qua CloudFront từ S3 private origin.
+- Request `/api/*` của trình duyệt tới ALB origin và trả HTTP 200.
+- Badge **LIVE AWS** phản ánh một request backend/API thành công.
+- Telemetry của `device_id = room_01` xuất hiện trên ba card.
+- Các nút quạt, đèn, rèm và chế độ được hiển thị.
+- Biểu đồ lịch sử nhận bản ghi từ history endpoint.
+- Nội dung đề xuất được mô tả là dựa trên luật/ngưỡng, không phải machine learning.
+- Telemetry được mô tả là gần thời gian thực qua REST polling, không kèm tuyên bố độ trễ thiếu bằng chứng.
 
 ## Xử lý sự cố
 
 | Hiện tượng | Nội dung cần kiểm tra |
 | :--- | :--- |
-| Vite proxy 404 | Proxy key/target, plural path, restart Vite |
-| CORS error | Request bypass proxy hoặc backend CORS chưa đủ |
-| Chart trống | Response shape, timestamp, xử lý history rỗng |
-| Status luôn online | Bind với `/api/health`, không phải component mount |
-| Command lặp | Disable control đang gửi và kiểm tra pending command/state |
-| UI báo thành công quá sớm | Hiện `Pending` đến khi backend báo ACK/`Executed` |
-| Chạy đến khi EC2 restart | Cập nhật public IP mới hoặc endpoint ổn định trong tương lai |
+| Vite proxy trả 404 | Kiểm tra proxy key, target, route API số nhiều và khởi động lại Vite |
+| Trình duyệt báo CORS | Xác nhận request đi qua proxy hoặc rà chính sách CORS của backend |
+| Telemetry card trống | Kiểm tra `/api/health`, cấu trúc latest response, `device_id` và cách xử lý loading/error |
+| Biểu đồ lịch sử trống | Kiểm tra history response, timestamp và cách xử lý mảng rỗng |
+| Trạng thái luôn online | Liên kết badge với health/API response thực, không dựa vào thời điểm component được gắn |
+| Command bị lặp | Vô hiệu hóa nút đang gửi và kiểm tra command cùng loại còn `Pending` hay không |
+| UI báo thành công quá sớm | Tách trạng thái backend nhận request khỏi ACK/`Executed` và phản ứng vật lý |
 
-Tiếp theo: [chạy xác minh end-to-end](../5.8-End-to-End-Testing/).
+Tiếp theo: [chạy kiểm thử end-to-end](../5.8-End-to-End-Testing/).

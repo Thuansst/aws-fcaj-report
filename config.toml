@@ -1,4 +1,4 @@
-baseURL = "https://github.com/Thuansst/aws-fcaj-report/"
+baseURL = "https://thuansst.github.io/aws-fcaj-report/"
 relativeURLs = true
 canonifyURLs = true
 
